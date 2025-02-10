@@ -143,7 +143,8 @@ class GridWorld():
         # Clear previous arrow objects
         for arrow in self.arrow_objects:
             arrow.remove()
-        self.arrow_objects.clear()             
+        self.arrow_objects.clear()
+                       
         for state, state_action_group in enumerate(policy_matrix):    
             x = state % self.env_size[0]
             y = state // self.env_size[0]
