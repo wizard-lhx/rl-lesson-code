@@ -22,6 +22,7 @@ class GridWorld():
         self.agent_state = start_state
         self.action_space = args.action_space          
         self.reward_target = args.reward_target
+        self.reward_boundary = args.reward_boundary
         self.reward_forbidden = args.reward_forbidden
         self.reward_step = args.reward_step
 
@@ -34,6 +35,8 @@ class GridWorld():
         self.color_policy = (0.4660,0.6740,0.1880)
         self.color_trajectory = (0, 1, 0)
         self.color_agent = (0,0,1)
+
+        self.arrow_objects = []  # Initialize the list to store arrow objects
 
 
 
@@ -66,16 +69,16 @@ class GridWorld():
         new_state = tuple(np.array(state) + np.array(action))
         if y + 1 > self.env_size[1] - 1 and action == (0,1):    # down
             y = self.env_size[1] - 1
-            reward = self.reward_forbidden  
+            reward = self.reward_boundary  
         elif x + 1 > self.env_size[0] - 1 and action == (1,0):  # right
             x = self.env_size[0] - 1
-            reward = self.reward_forbidden  
+            reward = self.reward_boundary  
         elif y - 1 < 0 and action == (0,-1):   # up
             y = 0
-            reward = self.reward_forbidden  
+            reward = self.reward_boundary  
         elif x - 1 < 0 and action == (-1, 0):  # left
             x = 0
-            reward = self.reward_forbidden 
+            reward = self.reward_boundary 
         elif new_state == self.target_state:  # stay
             x, y = self.target_state
             reward = self.reward_target
@@ -144,14 +147,21 @@ class GridWorld():
                 if action_probability !=0:
                     dx, dy = self.action_space[i]
                     if (dx, dy) != (0,0):
-                        self.ax.add_patch(patches.FancyArrow(x, y, dx=(0.1+action_probability/2)*dx, dy=(0.1+action_probability/2)*dy, color=self.color_policy, width=0.001, head_width=0.05))
+                        arrow = patches.FancyArrow(x, y, dx=(0.1+action_probability/5)*dx, dy=(0.1+action_probability/5)*dy, color=self.color_policy, width=0.001, head_width=0.05)
+                        self.ax.add_patch(arrow)
+                        self.arrow_objects.append(arrow)
                     else:
-                        self.ax.add_patch(patches.Circle((x, y), radius=0.07, facecolor=self.color_policy, edgecolor=self.color_policy, linewidth=1, fill=False))
+                        circle = patches.Circle((x, y), radius=0.07, facecolor=self.color_policy, edgecolor=self.color_policy, linewidth=1, fill=False)
+                        self.ax.add_patch(circle)
+                        self.arrow_objects.append(circle)
     
     def add_state_values(self, values, precision=1):
         '''
             values: iterable
         '''
+        # Clear previous text objects
+        for text in self.ax.texts:
+            text.remove()
         values = np.round(values, precision)
         for i, value in enumerate(values):
             x = i % self.env_size[0]

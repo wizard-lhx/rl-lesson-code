@@ -27,6 +27,9 @@ parser.add_argument("--reward-target", type=float, default = 10)
 # sepcify the reward when entering into forbidden area
 parser.add_argument("--reward-forbidden", type=float, default = -5)
 
+# sepcify the reward when entering into boudary area
+parser.add_argument("--reward-boundary", type=float, default = -1)
+
 # sepcify the reward for each step
 parser.add_argument("--reward-step", type=float, default = -1)
 ## ==================== End of User settings ====================
