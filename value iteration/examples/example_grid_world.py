@@ -32,21 +32,22 @@ def policy_iteration(env, gamma, epsilon, policy_matrix):
     last_state_values = np.zeros(env.num_states)
 
     ## 策略评估（用贝尔曼公式迭代计算出当前策略下的 state value）
-    ##（这里采用每次迭代都更新 action value 的方法，导致计算量会增大。实际上在策略改进时计算一次 action value 即可）
     while True:
         for i in range(env.num_states):
-            for j in range(len(env.action_space)):
-                next_state, reward = env._get_next_state_and_reward((i%env.env_size[0],i//env.env_size[0]), env.action_space[j])
-                x,y=next_state
-                q_table[i, j] = reward + gamma * state_values[y*env.env_size[0]+x]
-        for i in range(env.num_states):
-            state_values[i] = q_table[i, np.argmax(policy_matrix[i, :])]
+            next_state, reward = env._get_next_state_and_reward((i%env.env_size[0],i//env.env_size[0]), env.action_space[np.argmax(policy_matrix[i, :])])
+            x,y=next_state
+            state_values[i] = reward + gamma * state_values[y*env.env_size[0]+x]
         if(np.all(np.abs(state_values - last_state_values) < epsilon)):
             break
         last_state_values = state_values.copy()
     
-    ## 策略改进并判断策略是否收敛
+    ## 策略改进（先计算q_table，再更新策略）并判断策略是否收敛
     policy_stable = True
+    for i in range(env.num_states):
+        for j in range(len(env.action_space)):
+            next_state, reward = env._get_next_state_and_reward((i%env.env_size[0],i//env.env_size[0]), env.action_space[j])
+            x,y=next_state
+            q_table[i, j] = reward + gamma * state_values[y*env.env_size[0]+x]
     for i in range(env.num_states):
         old_action = np.argmax(policy_matrix[i, :])
         new_action = np.argmax(q_table[i, :])
@@ -60,14 +61,16 @@ def truncated_policy_iteration(env, gamma, truncated, policy_matrix, state_value
     ## state value 进行迭代计算时进行截断，并在下一次迭代时使用上一次的 state value 进行计算
     for t in range(truncated):
         for i in range(env.num_states):
-            for j in range(len(env.action_space)):
-                next_state, reward = env._get_next_state_and_reward((i%env.env_size[0],i//env.env_size[0]), env.action_space[j])
-                x,y=next_state
-                q_table[i, j] = reward + gamma * state_values[y*env.env_size[0]+x]
-        for i in range(env.num_states):
-            state_values[i] = q_table[i, np.argmax(policy_matrix[i, :])]
+            next_state, reward = env._get_next_state_and_reward((i%env.env_size[0],i//env.env_size[0]), env.action_space[np.argmax(policy_matrix[i, :])])
+            x,y=next_state
+            state_values[i] = reward + gamma * state_values[y*env.env_size[0]+x]
     
     policy_stable = True
+    for i in range(env.num_states):
+        for j in range(len(env.action_space)):
+            next_state, reward = env._get_next_state_and_reward((i%env.env_size[0],i//env.env_size[0]), env.action_space[j])
+            x,y=next_state
+            q_table[i, j] = reward + gamma * state_values[y*env.env_size[0]+x]
     for i in range(env.num_states):
         old_action = np.argmax(policy_matrix[i, :])
         new_action = np.argmax(q_table[i, :])
