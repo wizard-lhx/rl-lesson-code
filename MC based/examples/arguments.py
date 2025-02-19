@@ -13,19 +13,19 @@ parser = argparse.ArgumentParser("Grid World Environment")
 parser.add_argument("--env-size", type=Union[list, tuple, np.ndarray], default=(5,5) )   
 
 # specify the start state
-parser.add_argument("--start-state", type=Union[list, tuple, np.ndarray], default=(2,2))
+parser.add_argument("--start-state", type=Union[list, tuple, np.ndarray], default=(1,2))
 
 # specify the target state
-parser.add_argument("--target-state", type=Union[list, tuple, np.ndarray], default=(4,4))
+parser.add_argument("--target-state", type=Union[list, tuple, np.ndarray], default=(2,3))
 
 # sepcify the forbidden states
-parser.add_argument("--forbidden-states", type=list, default=[ (2, 1), (3, 3), (1, 3)] )
+parser.add_argument("--forbidden-states", type=list, default=[(1,1),(2,1),(2,2),(1,3),(1,4),(3,3)] )
 
 # sepcify the reward when reaching target
 parser.add_argument("--reward-target", type=float, default = 1)
 
 # sepcify the reward when entering into forbidden area
-parser.add_argument("--reward-forbidden", type=float, default = -1)
+parser.add_argument("--reward-forbidden", type=float, default = -10)
 
 # sepcify the reward when entering into boudary area
 parser.add_argument("--reward-boundary", type=float, default = -1)

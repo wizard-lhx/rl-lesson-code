@@ -1,6 +1,6 @@
 __credits__ = ["Intelligent Unmanned Systems Laboratory at Westlake University."]
 
-import sys    
+import sys         
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches          
@@ -22,8 +22,8 @@ class GridWorld():
         self.agent_state = start_state
         self.action_space = args.action_space          
         self.reward_target = args.reward_target
-        self.reward_boundary = args.reward_boundary
         self.reward_forbidden = args.reward_forbidden
+        self.reward_boundary = args.reward_boundary
         self.reward_step = args.reward_step
 
         self.canvas = None
@@ -144,7 +144,7 @@ class GridWorld():
         for arrow in self.arrow_objects:
             arrow.remove()
         self.arrow_objects.clear()
-                       
+
         for state, state_action_group in enumerate(policy_matrix):    
             x = state % self.env_size[0]
             y = state // self.env_size[0]
