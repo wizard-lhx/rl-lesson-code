@@ -83,7 +83,7 @@ class GridWorld():
             x, y = self.target_state
             reward = self.reward_target
         elif new_state in self.forbidden_states:  # stay
-            x, y = state
+            x, y = new_state
             reward = self.reward_forbidden        
         else:
             x, y = new_state
@@ -152,11 +152,11 @@ class GridWorld():
                 if action_probability !=0:
                     dx, dy = self.action_space[i]
                     if (dx, dy) != (0,0):
-                        arrow = patches.FancyArrow(x, y, dx=(0.1+action_probability/5)*dx, dy=(0.1+action_probability/5)*dy, color=self.color_policy, width=0.001, head_width=0.05)
+                        arrow = patches.FancyArrow(x, y, dx=(action_probability/5)*dx, dy=(action_probability/5)*dy, color=self.color_policy, width=0.0001, head_width=0.05)
                         self.ax.add_patch(arrow)
                         self.arrow_objects.append(arrow)
                     else:
-                        circle = patches.Circle((x, y), radius=0.07, facecolor=self.color_policy, edgecolor=self.color_policy, linewidth=1, fill=False)
+                        circle = patches.Circle((x, y), radius=action_probability/5, facecolor=self.color_policy, edgecolor=self.color_policy, linewidth=1, fill=False)
                         self.ax.add_patch(circle)
                         self.arrow_objects.append(circle)
     
