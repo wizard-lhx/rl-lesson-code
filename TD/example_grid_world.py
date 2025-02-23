@@ -86,6 +86,35 @@ def n_step_Sarsa(env, num_episodes=1000, alpha=0.1, gamma=0.9, epsilon=0.1, num_
     draw_metrics(total_rewards, episodes_length)
     return Q, policy
 
+def Q_learning(env, num_episodes=1000, alpha=0.1, gamma=0.9, epsilon=0.1):
+    # for animation
+    total_rewards = np.zeros(num_episodes)
+    episodes_length = np.zeros(num_episodes)
+    # algorithm
+    Q = np.zeros((env.num_states, len(env.action_space)))
+    policy = np.random.rand(env.num_states, len(env.action_space))
+    policy /= policy.sum(axis=1)[:, np.newaxis]  # make the sum of elements in each row to be 1
+    for i in range(num_episodes):
+        # state = np.random.choice(env.num_states)
+        state = env.pos2state(env.reset())
+        action = np.random.choice(len(env.action_space), p=policy[state, :])
+        done = False
+        while not done:
+            next_pos, reward, done, _ = env.step(env.action_space[action])
+            next_state = env.pos2state(next_pos)
+            # next_action = np.random.choice(len(env.action_space), p=policy[next_state, :])
+            # value update
+            Q[state, action] -= alpha * (Q[state, action] - (reward + gamma * Q[next_state, :].max()))
+            # policy update
+            policy = policy_update(policy, Q, state, epsilon)
+            state = next_state
+            action = np.random.choice(len(env.action_space), p=policy[next_state, :])
+
+            total_rewards[i] += reward
+            episodes_length[i] += 1
+    draw_metrics(total_rewards, episodes_length)
+    return Q, policy
+
 # Example usage:
 if __name__ == "__main__":             
     env = GridWorld()
@@ -94,6 +123,7 @@ if __name__ == "__main__":
     env.render()
     # Q, policy = Sarsa(env, num_episodes=1000, alpha=0.1, gamma=0.9, epsilon=0.1)
     Q, policy = n_step_Sarsa(env, num_episodes=1000, alpha=0.1, gamma=0.9, epsilon=0.1, num_steps=2)
+    # Q, policy = Q_learning(env, num_episodes=1000, alpha=0.1, gamma=0.9, epsilon=0.1)
     env.add_policy(policy)
     # Render the environment
     env.render(animation_interval=15)
