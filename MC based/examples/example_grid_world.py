@@ -180,7 +180,7 @@ if __name__ == "__main__":
     gamma = 0.9
     delta = 0.01
     T = 1000
-    epsilon = 1
+    epsilon = 0.1
     env = GridWorld()
     state = env.reset()
     q_table = np.zeros((env.num_states, len(env.action_space)))
