@@ -105,74 +105,47 @@ def MC_exploring_starts(env, gamma, delta, T, policy_matrix):
         last_q_table = q_table.copy()
     return state_values, policy_matrix
 
-def MC_epsilon_greedy(env, gamma, T, epsilon, policy_matrix):
-    q_table = np.zeros((env.num_states, len(env.action_space)))
-    last_q_table = np.zeros((env.num_states, len(env.action_space)))
-    returns = np.zeros((env.num_states, len(env.action_space)))
-    num_visited = np.zeros((env.num_states, len(env.action_space)))
-    state_values = np.zeros(env.num_states)
-
+def generate_episode(env, policy):
+    episode = []
+    state = env.pos2state(env.reset())
     while True:
-        if epsilon > 0.01:
-            epsilon *= 0.99
-        env.render()
+        action = np.random.choice(len(policy[state]), p=policy[state])
+        next_pos, reward, done, _ = env.step(env.action_space[action])
+        next_state = env.pos2state(next_pos)
+        episode.append((state, action, reward))
+        state = next_state
+        if done:
+            break
+    return episode
 
+def policy_update(policy, Q, state, epsilon):
+    action_star = np.argmax(Q[state])
+    # epsilon-greedy policy
+    policy[state][action_star] = 1 - epsilon + epsilon/len(env.action_space)
+    for i in range(len(env.action_space)):
+        if i != action_star:
+            policy[state][i] = epsilon / len(env.action_space)
+    return policy
+
+def MC_epsilon_greedy(env, gamma = 0.9, epsilon = 0.1, num_episode = 100):
+    Q = np.zeros((env.num_states, len(env.action_space)))
+    policy = np.ones((env.num_states, len(env.action_space))) / len(env.action_space)
+
+    for i in range(num_episode):
         returns = np.zeros((env.num_states, len(env.action_space)))
         num_visited = np.zeros((env.num_states, len(env.action_space)))
-
-        state_idx = random.randint(0, env.num_states-1)
-        action_idx = random.randint(0, len(env.action_space)-1)
-        state_action_pairs = [(state_idx,action_idx)]
-        rewards =  []
-        state =  (state_idx%env.env_size[0],state_idx//env.env_size[0])
-        action = env.action_space[action_idx]
-        env.agent_state = state
-        # 生成一条轨迹
-        for t in range(T):
-            next_state, reward = env._get_next_state_and_reward(state, action)
-            #_ = env.step(action)
-            x,y = next_state
-            state = next_state
-            action_idx = np.random.choice(len(env.action_space), p=policy_matrix[y*env.env_size[0]+x, :])
-            action = env.action_space[action_idx]
-            state_action_pairs.append((y*env.env_size[0]+x, action_idx))
-            rewards.append(reward)
-        g = 0
-        # 计算每个状态动作对的回报
-        for t in range(T, 0, -1):
-            g = rewards[t-1] + gamma * g
-            s = state_action_pairs[t-1][0]
-            a = state_action_pairs[t-1][1]
-            returns[s, a] = g+returns[s, a]
-            q_table[s, a] = returns[s, a] / (num_visited[s, a] + 1)
-            num_visited[s, a] += 1
-            # 策略改进
-            action_idx = np.argmax(q_table[s, :])
-            policy_matrix[s][action_idx] = 1-epsilon+epsilon/len(env.action_space)
-            for i in range(len(env.action_space)):
-                if i != action_idx:
-                    policy_matrix[s][i] = epsilon/len(env.action_space)
-
-        # 计算状态值
-        state_values = np.zeros(env.num_states)
-        for i in range(env.num_states):
-            for j in range(len(env.action_space)):
-                state_values[i] += policy_matrix[i][j] * q_table[i][j]
-
-        # Add state values
-        env.add_state_values(state_values)
-        # Add policy
-        policy_matrix /= policy_matrix.sum(axis=1)[:, np.newaxis]  # make the sum of elements in each row to be 1
-        env.add_policy(policy_matrix)
-
-        if(np.all(np.abs(q_table - last_q_table) < delta)):
-            last_q_table = q_table.copy()
-            break
-        last_q_table = q_table.copy()
-
-        # print(q_table)
-    return state_values, policy_matrix
-    
+        episode = generate_episode(env, policy)
+        G = 0
+        for t in range(len(episode)-1, -1, -1):
+            state, action, reward = episode[t]
+            G = gamma * G + reward
+            
+            returns[state, action] = returns[state, action] + G
+            num_visited[state, action] += 1
+            Q[state, action] = returns[state, action] / num_visited[state, action]
+            policy = policy_update(policy, Q, state, epsilon)
+        print("Episode: ", i)
+    return Q, policy
 
 # Example usage:
 if __name__ == "__main__":
@@ -201,8 +174,9 @@ if __name__ == "__main__":
     ## MC exploring starts
     # state_values, policy_matrix = MC_exploring_starts(env=env, gamma=gamma,delta=delta, T=T, policy_matrix=policy_matrix)
     ## MC epsilon greedy
-    state_values, policy_matrix = MC_epsilon_greedy(env=env, gamma=gamma, T=T, epsilon=epsilon, policy_matrix=policy_matrix)    
-        
+    env.render()
+    Q, policy = MC_epsilon_greedy(env=env, gamma=0.9, epsilon=0.1, num_episode=100)
     
+    env.add_policy(policy)
     print("Optimal policy")
     env.render(animation_interval=20)

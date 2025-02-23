@@ -1,6 +1,6 @@
 __credits__ = ["Intelligent Unmanned Systems Laboratory at Westlake University."]
 
-import sys         
+import sys    
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches          
@@ -22,8 +22,8 @@ class GridWorld():
         self.agent_state = start_state
         self.action_space = args.action_space          
         self.reward_target = args.reward_target
-        self.reward_forbidden = args.reward_forbidden
         self.reward_boundary = args.reward_boundary
+        self.reward_forbidden = args.reward_forbidden
         self.reward_step = args.reward_step
 
         self.canvas = None
@@ -43,7 +43,7 @@ class GridWorld():
     def reset(self):
         self.agent_state = self.start_state
         self.traj = [self.agent_state] 
-        return self.agent_state, {}
+        return self.agent_state
 
 
     def step(self, action):
@@ -95,6 +95,11 @@ class GridWorld():
     def _is_done(self, state):
         return state == self.target_state
     
+    def pos2state(self, pos):
+        return pos[1] * self.env_size[0] + pos[0]
+    
+    def state2pos(self, state):
+        return (state % self.env_size[0],state // self.env_size[0])
 
     def render(self, animation_interval=args.animation_interval):
         if self.canvas is None:
@@ -143,8 +148,7 @@ class GridWorld():
         # Clear previous arrow objects
         for arrow in self.arrow_objects:
             arrow.remove()
-        self.arrow_objects.clear()
-
+        self.arrow_objects.clear()             
         for state, state_action_group in enumerate(policy_matrix):    
             x = state % self.env_size[0]
             y = state // self.env_size[0]
@@ -152,11 +156,11 @@ class GridWorld():
                 if action_probability !=0:
                     dx, dy = self.action_space[i]
                     if (dx, dy) != (0,0):
-                        arrow = patches.FancyArrow(x, y, dx=(action_probability/5)*dx, dy=(action_probability/5)*dy, color=self.color_policy, width=0.0001, head_width=0.05)
+                        arrow = patches.FancyArrow(x, y, dx=(0.1+action_probability/5)*dx, dy=(0.1+action_probability/5)*dy, color=self.color_policy, width=0.001, head_width=0.05)
                         self.ax.add_patch(arrow)
                         self.arrow_objects.append(arrow)
                     else:
-                        circle = patches.Circle((x, y), radius=action_probability/5, facecolor=self.color_policy, edgecolor=self.color_policy, linewidth=1, fill=False)
+                        circle = patches.Circle((x, y), radius=0.07, facecolor=self.color_policy, edgecolor=self.color_policy, linewidth=1, fill=False)
                         self.ax.add_patch(circle)
                         self.arrow_objects.append(circle)
     
