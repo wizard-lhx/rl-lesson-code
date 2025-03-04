@@ -1,6 +1,6 @@
 # 强化学习教程代码
 ## 1 环境
-python 版本：3.11.9
+python 版本：3.11.9<br>
 算法验证环境：在[强化学习的数学原理书本及环境代码](https://github.com/MathFoundationRL/Book-Mathematical-Foundation-of-Reinforcement-Learning)中设置 5 x 5 网格地图。
 ## 2 运行方法
 ```
