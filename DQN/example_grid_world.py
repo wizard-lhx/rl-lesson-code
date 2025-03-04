@@ -1,130 +1,161 @@
 from grid_world import GridWorld
 import random
 import numpy as np
-import matplotlib.pyplot as plt
+import collections
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from tqdm import tqdm
 
-class DQN():
-    def __init__(self, env, gamma=0.9, epsilon=0.1):
-        self.env = env
-        self.gamma = gamma
-        self.epsilon = epsilon
+class ReplayBuffer:
+    def __init__(self, capacity):
+        self.buffer = collections.deque(maxlen=capacity)
 
-        self.main_network = self.build_model()
-        self.target_network = self.build_model()
-        for param in self.target_network.parameters():
-            param.requires_grad = False
-        self.optimizer = optim.SGD(self.main_network.parameters(), lr=0.001)
-        self.criterion = nn.MSELoss()
+    def add(self, state, action, reward, next_state, done):
+        self.buffer.append((state, action, reward, next_state, done))
 
-        self.behavior_policy = np.ones((self.env.num_states, len(self.env.action_space))) / len(self.env.action_space)
-        self.target_policy = np.ones((self.env.num_states, len(self.env.action_space))) / len(self.env.action_space)
+    def sample(self, batch_size):  # 从buffer中采样数据,数量为batch_size
+        transitions = random.sample(self.buffer, batch_size)
+        state, action, reward, next_state, done = zip(*transitions)
+        return np.array(state), action, reward, np.array(next_state), done
 
-        self.replay_buffer = []
-
-    def build_model(self):
-        model = nn.Sequential(
-            # input is state and action, output is Q-value
-            nn.Linear(2, 100),
-            nn.ReLU(),
-            nn.Linear(100, 100),
-            nn.ReLU(),
-            nn.Linear(100, 1)
-        )
-        return model
+    def size(self):  # 目前buffer中数据的数量
+        return len(self.buffer)
     
-    def get_policy(self):
-        return self.target_policy
+class Qnet(nn.Module):
+    def __init__(self, state_dim, hidden_dim, action_dim):
+        super(Qnet, self).__init__()
+        self.fc1 = nn.Linear(state_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, action_dim)
+
+    def forward(self, x):
+        x = nn.functional.relu(self.fc1(x))  # 隐藏层使用ReLU激活函数
+        return self.fc2(x)
     
-    def generate_replay_buffer(self, num_episodes=1, num_steps = 1000):
-        self.replay_buffer = []
-        for episode in range(num_episodes):
-            state = self.env.pos2state(self.env.reset())
-            for step in range(num_steps):
-                action = np.random.choice(len(self.env.action_space),p = self.behavior_policy[state])
-                next_pos, reward, done,_ = self.env.step(self.env.action_space[action])
-                next_state = self.env.pos2state(next_pos)
-                self.replay_buffer.append((state, action, reward, next_state))
-                state = next_state
-                # if done:
-                #     break
-        
-    def train(self):
-        q_value, q_target = self.get_batch(batch_size=100)
-        loss = self.criterion(q_value, q_target)
-        self.optimizer.zero_grad()
-        loss.backward()
+class DQN:
+    ''' DQN算法 '''
+    def __init__(self, state_dim, hidden_dim, action_dim, learning_rate, gamma,
+                 epsilon, target_update, device):
+        self.action_dim = action_dim
+        self.q_net = Qnet(state_dim, hidden_dim,
+                          self.action_dim).to(device)  # Q网络
+        # 目标网络
+        self.target_q_net = Qnet(state_dim, hidden_dim,
+                                 self.action_dim).to(device)
+        self.criterion = nn.MSELoss()  # 使用均方误差损失函数
+        # 使用Adam优化器
+        self.optimizer = optim.Adam(self.q_net.parameters(),
+                                          lr=learning_rate)
+        self.gamma = gamma  # 折扣因子
+        self.epsilon = epsilon  # epsilon-贪婪策略
+        self.target_update = target_update  # 目标网络更新频率
+        self.count = 0  # 计数器,记录更新次数
+        self.device = device
+
+    def take_action(self, state):  # 均匀分布的策略采取动作
+        action = np.random.randint(self.action_dim)
+        return action
+    
+    def update(self, transition_dict):
+        states = torch.tensor(transition_dict['states'],
+                              dtype=torch.float).to(self.device)
+        actions = torch.tensor(transition_dict['actions']).view(-1, 1).to(
+            self.device)
+        rewards = torch.tensor(transition_dict['rewards'],
+                               dtype=torch.float).view(-1, 1).to(self.device)
+        next_states = torch.tensor(transition_dict['next_states'],
+                                   dtype=torch.float).to(self.device)
+        dones = torch.tensor(transition_dict['dones'],
+                             dtype=torch.float).view(-1, 1).to(self.device)
+
+        q_values = self.q_net(states).gather(1, actions)  # Q值
+        # 下个状态的最大Q值
+        max_next_q_values = self.target_q_net(next_states).max(1)[0].view(
+            -1, 1)
+        q_targets = rewards + self.gamma * max_next_q_values * (1 - dones
+                                                                )  # TD误差目标
+        dqn_loss = self.criterion(q_values, q_targets)  # 均方误差损失函数
+        self.optimizer.zero_grad()  # PyTorch中默认梯度会累积,这里需要显式将梯度置为0
+        dqn_loss.backward()  # 反向传播更新参数
         self.optimizer.step()
-    
-    def get_batch(self, batch_size=32):
-        # choose the batch_size {s,a,r,s'}
-        random.shuffle(self.replay_buffer)
-        batch = random.sample(self.replay_buffer, batch_size)
 
-        # (b,4)->(b,)
-        state, action, reward, next_state = zip(*batch)
-        # (b,)->(b,2)
-        state_action_pair = torch.FloatTensor(list(zip(state,action)))
-        q_value = self.main_network(state_action_pair)
-        
-        # (b,)->(b,1)->(b,1,1)->(b,5,1)
-        state_expand = torch.FloatTensor(next_state).unsqueeze(1).unsqueeze(1).repeat(1,5,1)
-        # (5,)->(5,1)->(1,5,1)->(b,5,1)
-        action_expand = torch.arange(len(self.env.action_space)).unsqueeze(1).unsqueeze(0).repeat(batch_size,1,1)
-        # (b,5,1)->(b,5,2)
-        next_state_action_pairs = torch.cat([state_expand,action_expand],dim = 2)
-        # (b,5,2)->(b,5,1)
-        next_q_value = self.target_network(next_state_action_pairs)
-        # (b,5,1)->(b,1)
-        max_q_value,max_action_idx = torch.max(next_q_value,dim = 1)
-        q_target = torch.FloatTensor(reward).unsqueeze(1) + self.gamma * max_q_value
-
-        return q_value, q_target
-
-    def update_policy(self, state, action_star):
-        # greedy policy
-        self.target_policy[state][action_star] = 1
-        for i in range(len(self.env.action_space)):
-            if i != action_star:
-                self.target_policy[state][i] = 0
-
-    def run(self, num_episodes=100):
-        rewards = 0
-        self.generate_replay_buffer(num_episodes=1, num_steps = 1000)
-        V = np.zeros(self.env.num_states)
-
-        self.main_network.train()
-        for episode in range(num_episodes):
-            self.train()
-            if (episode+1) % 5 == 0:
-                self.target_network.load_state_dict(self.main_network.state_dict())
-        with torch.no_grad():
-            state = [self.env.pos2state(self.env.reset())]
-            done = False
-            # while not done:
-            for i in range(self.env.num_states):
-                state_action_pairs = torch.cat([torch.tensor(state,dtype=torch.float).unsqueeze(1).repeat(5,1),
-                                                torch.arange(len(self.env.action_space),dtype=torch.float).unsqueeze(1)],dim = 1)
-                max_q_value, action_star = torch.max(self.target_network(state_action_pairs),dim=0)
-                self.update_policy(state[0],action_star[0])
-                next_pos, reward, done, _ = self.env.step(self.env.action_space[action_star])
-                # state = [self.env.pos2state(next_pos)]
-                state = [i]
-                rewards += reward
-                V[i] = max_q_value[0]
-            return V
+        if self.count % self.target_update == 0:
+            self.target_q_net.load_state_dict(
+                self.q_net.state_dict())  # 更新目标网络
+        self.count += 1
 
 # Example usage:
-if __name__ == "__main__":             
+if __name__ == "__main__":
+    # 超参数
+    lr = 2e-3
+    num_episodes = 500
+    hidden_dim = 128
+    gamma = 0.9
+    epsilon = 1
+    target_update = 10
+    buffer_size = 10000
+    minimal_size = 100
+    batch_size = 32
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device(
+        "cpu")
+    # 设置环境，且固定随机种子使每次实验重复
     env = GridWorld()
     state = env.reset()
+    torch.manual_seed(0)
+    random.seed(0)
+    np.random.seed(0)
+    replay_buffer = ReplayBuffer(buffer_size)
+    state_dim = 2
+    action_dim = 5
+    agent = DQN(state_dim, hidden_dim, action_dim, lr, gamma, epsilon,
+                target_update, device)
     
+    policy = np.zeros((env.num_states,len(env.action_space)))
     env.render()
-    dqn = DQN(env)
-    V = dqn.run(num_episodes=400)
-    env.add_policy(dqn.get_policy())
-    env.add_state_values(V)
+    
+    # 因为每个 episode 采取的动作是随机的，所以这里计算的 behaviour policy 的 return 没有意义，可以使用目标策略的 return 作为评估指标
+    return_list = []
+    # 总共 500 episode，每 50 个 episode 显示当前最优策略
+    for i in range(10):
+        with tqdm(total=int(num_episodes / 10), desc='Iteration %d' % i) as pbar:
+            for i_episode in range(int(num_episodes / 10)):
+                episode_return = 0
+                state = env.reset()
+                done = False
+                # 每个 episode 固定为 1000 步
+                for j in range(1000):
+                    action = agent.take_action(state)
+                    next_state, reward, done, _ = env.step(env.action_space[action])
+                    replay_buffer.add(state, action, reward, next_state, done)
+                    state = next_state
+                    episode_return += reward
+                    # 当 buffer 数据的数量超过一定值后,才进行 Q 网络训练
+                    if replay_buffer.size() > minimal_size:
+                        b_s, b_a, b_r, b_ns, b_d = replay_buffer.sample(batch_size)
+                        transition_dict = {
+                            'states': b_s,
+                            'actions': b_a,
+                            'next_states': b_ns,
+                            'rewards': b_r,
+                            'dones': b_d
+                        }
+                        agent.update(transition_dict)
+                return_list.append(episode_return)
+                # 更新进度条
+                if (i_episode + 1) % 10 == 0:
+                    pbar.set_postfix({
+                        'episode':
+                        '%d' % (num_episodes / 10 * i + i_episode + 1),
+                        'return':
+                        '%.3f' % np.mean(return_list[-10:])
+                    })
+                pbar.update(1)
+            # 每 50 个 episode 显示一次当前最优策略
+            for k in range(env.num_states):
+                policy[k] = np.eye(len(env.action_space))[agent.q_net(torch.tensor(env.state2pos(k), dtype=torch.float).to(device)).argmax().item()]
+            env.add_policy(policy)
+            env.render()
+    
+    env.add_policy(policy)
     # Render the environment
     env.render(animation_interval=15)
